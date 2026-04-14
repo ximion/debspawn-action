@@ -1,0 +1,22 @@
+name: "Build a deb package"
+description: "Build a deb package using debspawn."
+inputs:
+  suite:
+    description: "The previously created suite to build for."
+    default: "stable"
+    required: false
+branding:
+  icon: "package"
+  color: "purple"
+runs:
+  using: "composite"
+  steps:
+  - name: Verify
+    shell: bash
+    run: |
+      set -euo pipefail
+
+      if ! debspawn exists "${{ inputs.suite }}"; then
+        echo "::error::Debspawn environment '${{ inputs.suite }}' does not exist. Did you forget to run the setup action?"
+        exit 1
+      fi

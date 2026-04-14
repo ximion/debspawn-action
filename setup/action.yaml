@@ -1,0 +1,110 @@
+name: "Setup Debspawn"
+description: "Set up debspawn and create a build environment"
+inputs:
+  suite:
+    description: "The suite to create an environment for"
+    default: "stable"
+    required: false
+  packages:
+    description: "Additional packages to install in the build environment"
+    required: false
+  cache:
+    description: "Cache the build environment for faster subsequent runs."
+    default: true
+    required: false
+  cache-suffix:
+    description: "Caller-defined cache key suffix."
+    required: false
+    default: "none"
+branding:
+  icon: "target"
+  color: "purple"
+runs:
+  using: "composite"
+  steps:
+  - name: Update cache
+    shell: bash
+    run: sudo apt-get update -qq
+
+  - name: Install system prerequisites
+    shell: bash
+    run: |
+      sudo apt-get install -yq eatmydata
+      sudo eatmydata apt-get install -yq debspawn mmdebstrap debian-archive-keyring ubuntu-keyring
+
+    # NOTE: Once changes are released, we can drop this hack
+  - name: Upgrade debspawn
+    shell: bash
+    run: |
+        sudo rm /usr/bin/debspawn
+        sudo git clone --depth 1 https://github.com/lkhq/debspawn.git /opt/debspawn
+        sudo ln -s /opt/debspawn/debspawn.py /usr/bin/debspawn
+
+  - name: Prepare debspawn directory
+    shell: bash
+    run: |
+      sudo mkdir -p /var/lib/debspawn
+      sudo chown -R "$USER:$USER" /var/lib/debspawn
+
+  - name: Normalize package list
+    id: pkgs
+    shell: bash
+    run: |
+      pkgs=$(printf "%s\n" "${{ inputs.packages }}" \
+        | sed '/^\s*$/d' \
+        | paste -sd' ' -)
+      echo "value=$pkgs" >> "$GITHUB_OUTPUT"
+
+  - name: Compute cache hash
+    id: cache-key
+    if: ${{ inputs.cache }}
+    shell: bash
+    run: |
+      week=$(date +%V)
+      year=$(date +%G)
+      # we change this number every two weeks, so we get a good balance between cache hits and freshness
+      time_bucket=$((10#$week / 2))
+
+      keydata=$(cat <<EOF
+      os=${{ runner.os }}
+      suite=${{ inputs.suite }}
+      packages=${{ steps.pkgs.outputs.value }}
+      action=${{ github.action_repository }}@${{ github.action_ref }}
+      time_key=$time_bucket
+      EOF
+      )
+
+      hash=$(printf "%s" "$keydata" | sha256sum | cut -c1-32)
+      echo "value=$hash" >> "$GITHUB_OUTPUT"
+
+  - name: Restore cache
+    uses: actions/cache@v4
+    if: ${{ inputs.cache }}
+    with:
+      path: /var/lib/debspawn/images/
+      key: >-
+        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+      restore-keys: |
+        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-
+
+  - name: Create or update environment
+    shell: bash
+    run: |
+      set -euo pipefail
+      extra_args=""
+      ds_params="${extra_args[@]} ${{ inputs.suite }}"
+
+      if debspawn exists ${ds_params}; then
+        # update if the image already exists
+        debspawn update $ds_params
+      else
+        debspawn create $ds_params
+
+        if [ -n "${{ inputs.packages }}" ]; then
+            # We use a separate step to install extra packages, so we can benefit both
+            # from APTs full resolver (may not be available with some debootstrap variants)
+            # as well as eatmydata.
+            debspawn run --persistent "${{ inputs.suite }}" "eatmydata apt-get install -yq ${{ steps.pkgs.outputs.value }}"
+        fi
+      fi
