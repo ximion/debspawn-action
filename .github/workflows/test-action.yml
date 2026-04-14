@@ -17,7 +17,10 @@ jobs:
       - name: Debspawn Setup
         uses: ./setup
         with:
-          suite: stable
+          suite: resolute
+          components: >-
+            main
+            universe
           cache: true
 
   setup-with-packages:

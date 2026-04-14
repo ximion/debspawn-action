@@ -1,12 +1,22 @@
 name: "Setup Debspawn"
 description: "Set up debspawn and create a build environment"
 inputs:
+  name:
+    description: "The name of the image to create. If not specified, the name will be the same as the suite."
+    required: false
   suite:
-    description: "The suite to create an environment for"
+    description: "The suite to create an environment for."
     default: "stable"
     required: false
+  components:
+    description: "The archive components (main, non-free, etc.) to include in the environment."
+    default: "main"
+    required: false
   packages:
-    description: "Additional packages to install in the build environment"
+    description: "Additional packages to install in the build environment."
+    required: false
+  script:
+    description: "Custom script after the setup. Changes made by it will be made permanent to the cache image. The script can be a file, or a list of commands."
     required: false
   cache:
     description: "Cache the build environment for faster subsequent runs."
@@ -15,7 +25,7 @@ inputs:
   cache-suffix:
     description: "Caller-defined cache key suffix."
     required: false
-    default: "none"
+    default: "gha"
 branding:
   icon: "target"
   color: "purple"
@@ -26,7 +36,7 @@ runs:
     shell: bash
     run: sudo apt-get update -qq
 
-  - name: Install system prerequisites
+  - name: Install prerequisites
     shell: bash
     run: |
       sudo apt-get install -yq eatmydata
@@ -46,14 +56,27 @@ runs:
       sudo mkdir -p /var/lib/debspawn
       sudo chown -R "$USER:$USER" /var/lib/debspawn
 
-  - name: Normalize package list
-    id: pkgs
+  - name: Normalize variables
+    id: vars
     shell: bash
     run: |
+      # Name / Suite
+      name="${{ inputs.name || inputs.suite }}"
+      echo "name=$name" >> "$GITHUB_OUTPUT"
+      echo "suite=${{ inputs.suite }}" >> "$GITHUB_OUTPUT"
+
+      # Packages
       pkgs=$(printf "%s\n" "${{ inputs.packages }}" \
-        | sed '/^\s*$/d' \
-        | paste -sd' ' -)
-      echo "value=$pkgs" >> "$GITHUB_OUTPUT"
+           | sed '/^\s*$/d' \
+           | paste -sd' ' -)
+      echo "pkgs=$pkgs" >> "$GITHUB_OUTPUT"
+
+      # Components
+      components=$(printf "%s\n" "${{ inputs.components }}" \
+                 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+                 -e '/^$/d' \
+                 | paste -sd',' -)
+      echo "components=$components" >> "$GITHUB_OUTPUT"
 
   - name: Compute cache hash
     id: cache-key
@@ -65,46 +88,83 @@ runs:
       # we change this number every two weeks, so we get a good balance between cache hits and freshness
       time_bucket=$((10#$week / 2))
 
+      # if the script is a file, we include its hash as cache key, otherwise
+      # we just add the full content to hash
+      script_key="${{ inputs.script }}"
+      if [ -f "$script_input" ]; then
+          echo "Script input is a file: $script_input"
+          script_key=$(sha256sum "$script_key" | cut -d' ' -f1)
+      fi
+
       keydata=$(cat <<EOF
       os=${{ runner.os }}
-      suite=${{ inputs.suite }}
-      packages=${{ steps.pkgs.outputs.value }}
+      suite=${{ steps.vars.outputs.suite }}
+      packages=${{ steps.vars.outputs.pkgs }}
       action=${{ github.action_repository }}@${{ github.action_ref }}
-      time_key=$time_bucket
+      script=$script_key
       EOF
       )
 
       hash=$(printf "%s" "$keydata" | sha256sum | cut -c1-32)
-      echo "value=$hash" >> "$GITHUB_OUTPUT"
+      echo "value=${hash}-${year}-${time_bucket}" >> "$GITHUB_OUTPUT"
 
   - name: Restore cache
-    uses: actions/cache@v4
+    uses: actions/cache@v5
     if: ${{ inputs.cache }}
     with:
       path: /var/lib/debspawn/images/
       key: >-
-        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
       restore-keys: |
-        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
-        debspawn-${{ inputs.suite }}-${{ steps.cache-key.outputs.value }}-
+        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-
 
   - name: Create or update environment
     shell: bash
     run: |
       set -euo pipefail
       extra_args=""
-      ds_params="${extra_args[@]} ${{ inputs.suite }}"
 
-      if debspawn exists ${ds_params}; then
+      if debspawn exists ${{ steps.vars.outputs.name }}; then
         # update if the image already exists
-        debspawn update $ds_params
+        debspawn update ${{ steps.vars.outputs.name }}
       else
-        debspawn create $ds_params
+        debspawn create ${extra_args} \
+          --suite="${{ steps.vars.outputs.suite }}" \
+          --components="${{ steps.vars.outputs.components }}" \
+          "${{ steps.vars.outputs.name }}"
+      fi
 
-        if [ -n "${{ inputs.packages }}" ]; then
-            # We use a separate step to install extra packages, so we can benefit both
-            # from APTs full resolver (may not be available with some debootstrap variants)
-            # as well as eatmydata.
-            debspawn run --persistent "${{ inputs.suite }}" "eatmydata apt-get install -yq ${{ steps.pkgs.outputs.value }}"
-        fi
+  - name: Install extra packages
+    shell: bash
+    if: ${{ inputs.packages != '' }}
+    # We use a separate step to install extra packages, so we can benefit both
+    # from APTs full resolver (may not be available with some debootstrap variants)
+    # as well as eatmydata.
+    run: |
+      debspawn run --persistent \
+        "${{ steps.vars.outputs.name }}" \
+        "eatmydata apt-get install -yq ${{ steps.vars.outputs.pkgs }}"
+
+  - name: Custom script
+    shell: bash
+    if: ${{ inputs.script != '' }}
+    run: |
+      script_input="${{ inputs.script }}"
+      if [ -f "$script_input" ]; then
+          echo "Script input is a file: $script_input"
+          debspawn run --persistent -x \
+            "${{ steps.vars.outputs.name }}" \
+            "$script_input"
+      else
+          echo "Script input is inline content"
+          tmpdir=$(mktemp -d)
+          tmpscript="$tmpdir/custom-setup.sh"
+
+          printf "#!/bin/sh\n%s\n" "$script_input" > "$tmpscript"
+          debspawn run --persistent -x \
+            "${{ steps.vars.outputs.name }}" \
+            "$tmpscript"
+
+          rm -rf "$tmpdir"
       fi
