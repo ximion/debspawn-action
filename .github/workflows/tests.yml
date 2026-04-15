@@ -98,7 +98,7 @@ jobs:
         uses: ./build
         with:
           suite: stable
-          source-dir: tests/autoversion-source
+          source-dir: tests/dummy
           network: true
           results-dir: build-results-autoversion
 

@@ -30,6 +30,5 @@ if [ "$git_commit_no" -gt 0 ]; then
 fi
 
 set +x
-cp -dpr contrib/debian .
 dch --distribution "${SUITE}" --newversion="${upstream_version}~${SLUG_EXT}" -b \
     "New automated build for: ${upstream_version} - ${git_commit}"

@@ -14,3 +14,14 @@ Depends: ${misc:Depends},
 Description: A dummy package for testing purposes
  This package is the most minimal Debian package, for CI testing purposes.
  It does absolutely nothing useful.
+
+Package: dummy-all
+Architecture: all
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
+Description: A dummy arch:all package for testing purposes
+ This package is the most minimal Debian package, for CI testing purposes.
+ It does absolutely nothing useful.
+ .
+ This one is the same on all architectures, and contains only
+ architecture-independent files.
