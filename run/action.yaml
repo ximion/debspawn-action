@@ -66,15 +66,16 @@ runs:
 
   - name: Run
     shell: bash
+    env:
+      SCRIPT_INPUT: ${{ inputs.commands }}
     run: |
       tmpdir=$(mktemp -d)
       cmdscript="$tmpdir/run.sh"
 
-      script_input="${{ inputs.commands }}"
-      if [ -f "$script_input" ]; then
-          printf "#!/bin/sh\nexec %s\n" "$script_input" > "$cmdscript"
+      if [ -f "$SCRIPT_INPUT" ]; then
+          printf "#!/bin/sh\nexec %s\n" "$SCRIPT_INPUT" > "$cmdscript"
       else
-          printf "#!/bin/sh\n%s\n" "$script_input" > "$cmdscript"
+          printf "#!/bin/sh\n%s\n" "$SCRIPT_INPUT" > "$cmdscript"
       fi
 
       extra_args=""

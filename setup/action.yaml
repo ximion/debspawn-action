@@ -149,16 +149,17 @@ runs:
   - name: Custom script
     shell: bash
     if: ${{ inputs.script != '' }}
+    env:
+      SCRIPT_INPUT: ${{ inputs.script }}
     run: |
       tmpdir=$(mktemp -d)
-      script_input="${{ inputs.script }}"
-      if [ -f "$script_input" ]; then
-          echo "Script input is a file: $script_input"
-          script_fname=$script_input
+      if [ -f "$SCRIPT_INPUT" ]; then
+          echo "Script is a file: $SCRIPT_INPUT"
+          script_fname=$SCRIPT_INPUT
       else
-          echo "Script input is inline content"
+          echo "Script is inline content"
           tmpscript="$tmpdir/custom-setup.sh"
-          printf "#!/bin/sh\n%s\n" "$script_input" > "$tmpscript"
+          printf "#!/bin/sh\n%s\n" "$SCRIPT_INPUT" > "$tmpscript"
           script_fname="$tmpscript"
       fi
 
