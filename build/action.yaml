@@ -1,13 +1,35 @@
 name: "Build a deb package"
 description: "Build a deb package using debspawn."
 inputs:
-  image_name:
+  name:
     description: "The image name to use for building."
     default: ""
     required: false
   suite:
     description: "The previously created suite to build for."
     default: "stable"
+    required: true
+  source-dir:
+    description: "Root directory from where to build the package."
+    default: "."
+    required: false
+  debian-dir:
+    description: "Location of the debian/ directory to be used for building. Will be copied into source-root."
+    default: "debian"
+    required: false
+  version:
+    description: "Version number to set for the resulting package. If not specified, the version will be determined from the last Git tag and commit."
+    required: false
+  version-slug:
+    description: "Version slug to append to the version number, to distinguish builds for different releases."
+    required: false
+  results-dir:
+    description: "Output location for the build artifacts (packages and build logs)."
+    default: "build-results"
+    required: false
+  network:
+    description: "If true, run build with network enabled (bad for reproducibility)."
+    default: false
     required: false
 branding:
   icon: "package"
@@ -15,10 +37,76 @@ branding:
 runs:
   using: "composite"
   steps:
+  - name: Normalize variables
+    id: vars
+    shell: bash
+    run: |
+      name="${{ inputs.name || inputs.suite }}"
+      echo "name=$name" >> "$GITHUB_OUTPUT"
+      echo "suite=${{ inputs.suite }}" >> "$GITHUB_OUTPUT"
+
+      slug="${{ inputs.slug || inputs.suite }}"
+      echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      echo "src_dir=$GITHUB_WORKSPACE/${{ inputs.source-dir }}" >> "$GITHUB_OUTPUT"
+      echo "results_dir=$GITHUB_WORKSPACE/${{ inputs.results-dir }}" >> "$GITHUB_OUTPUT"
+
   - name: Verify
     shell: bash
     run: |
-      if ! debspawn exists "${{ inputs.suite }}"; then
+      if ! debspawn exists "${{ steps.vars.outputs.name }}"; then
         echo "::error::Debspawn environment '${{ inputs.suite }}' does not exist. Did you forget to run the setup action?"
         exit 1
       fi
+
+      if [[ -z "${{ steps.vars.outputs.suite }}" ]]; then
+        echo "::error::Suite name is not set. We need a valid suite to continue."
+        exit 1
+      fi
+
+  - name: Copy debian/ directory
+    if: ${{ inputs.debian-dir != 'debian' }}
+    id: copy_debian
+    shell: bash
+    working-directory: ${{ steps.vars.outputs.src_dir }}
+    run: |
+      if [[ -d "${{ inputs.debian-dir }}" ]]; then
+        cp -dpr "${{ inputs.debian-dir }}" "./debian"
+        echo "copied=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "::warning::Debian directory '${{ inputs.debian-dir }}' does not exist. Continuing without copying it."
+        echo "copied=false" >> "$GITHUB_OUTPUT"
+      fi
+
+  - name: Autoversion
+    if: ${{ inputs.version == '' }}
+    shell: bash
+    working-directory: ${{ steps.vars.outputs.src_dir }}
+    run: ${{ github.action_path }}/autoversion.sh "${{ steps.vars.outputs.suite }}" "${{ steps.vars.outputs.slug }}"
+
+  - name: Apply version
+    if: ${{ inputs.version != '' }}
+    shell: bash
+    working-directory: ${{ steps.vars.outputs.src_dir }}
+    run: |
+      dch --distribution "${{ steps.vars.outputs.suite }}" --newversion="${{ inputs.version }}~${{ steps.vars.outputs.slug }}" -b \
+        "New automated build for: ${{ inputs.version }}"
+
+  - name: Package Build
+    shell: bash
+    working-directory: ${{ steps.vars.outputs.src_dir }}
+    run: |
+      extra_args=""
+      if [[ "${{ inputs.network }}" == "true" ]]; then
+        extra_args="--allow-network"
+      fi
+      debspawn build $extra_args \
+        --results-dir="${{ steps.vars.outputs.results_dir }}" \
+        --suite="${{ steps.vars.outputs.suite }}" \
+        ${{ steps.vars.outputs.name }}
+
+  - name: Remove copied debian directory
+    if: ${{ inputs.debian-dir != 'debian' && steps.copy_debian.outputs.copied == 'true' }}
+    shell: bash
+    run: |
+      rm -rf "${{ inputs.source-root }}/debian"

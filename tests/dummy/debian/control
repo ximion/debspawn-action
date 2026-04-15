@@ -1,0 +1,16 @@
+Source: dummy
+Section: misc
+Priority: optional
+Maintainer: Matthias Klumpp <mak@debian.org>
+Build-Depends: debhelper-compat (= 13),
+               appstream,
+               meson,
+Standards-Version: 4.7.4
+
+Package: dummy
+Architecture: any
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
+Description: A dummy package for testing purposes
+ This package is the most minimal Debian package, for CI testing purposes.
+ It does absolutely nothing useful.
