@@ -1,20 +1,24 @@
 # Debspawn Action
 [![Test](https://github.com/ximion/debspawn-action/actions/workflows/tests.yml/badge.svg)](https://github.com/ximion/debspawn-action/actions/workflows/tests.yml)
 
-Build Debian packages and run custom commands in clean Debian/Ubuntu containers on GitHub Actions!
+Build Debian packages or run custom commands in clean Debian/Ubuntu containers on GitHub Actions!
 
-This repository contains **three actions**:
+This repository contains **three actions** that you can mix and match in your workflows:
 
-- `setup` - creates (or updates) a debspawn image and must run first
+- `setup` - creates (or updates) a [debspawn](https://github.com/lkhq/debspawn) image and must run first
 - `build` - builds a Debian package using the previously created container image
 - `run`   - runs arbitrary commands/scripts in the container
 
 ## Why do I need this?
 
 - Reproducible, containerized builds for Debian and Ubuntu
-- Very small CI surface for Debian packaging
+- Small CI surface for Debian packaging
 - Easy custom command execution in a clean distro environment, using modern Debian or Ubuntu releases
 - Built-in caching support for faster repeated runs
+
+To build packages and maintain the container images, this action uses [debspawn](https://github.com/lkhq/debspawn),
+a convenient tool to build Debian packages. It itself is built on top of [systemd-nspawn](https://www.freedesktop.org/software/systemd/man/latest/systemd-nspawn.html),
+a lightweight containerization tool built into systemd.
 
 ## Usage
 
@@ -59,17 +63,17 @@ All inputs except for `suite` are optional.
 
 All inputs except for `suite` are optional.
 
-| Input          | Examples                   | Default         | Description                                                                                                        |
-|----------------|----------------------------|-----------------|--------------------------------------------------------------------------------------------------------------------|
-| `name`         | `build`, `my-ci-tests`     | `suite`         | Image name to build in, or left empty to use the suite name.                                                       |
-| `suite`        | `trixie`, `resolute`       | `stable`        | Ubuntu or Debian suite to build for.                                                                               |
-| `source-dir`   | `.`, `src`                 | `.`             | Source directory root used for the package build.                                                                  |
-| `debian-dir`   | e.g. `packaging/debian`    | `debian`        | Debian packaging directory. Will be copied into `source-dir` during the build.                                     |
-| `version`      | `1.0.0`, `2.1.4`           | _(none)_        | Explicit package version. If omitted, a version is automatically determined from the git commit and any `v*` tags. |
-| `version-slug` | `deb14`, `ubu26`, ...      | _(none)_        | Suffix appended to the version to distinguish build for different distributions.                                   |
-| `results-dir`  | `build-results`, `out/deb` | `build-results` | Directory receiving build artifacts and logs.                                                                      |
-| `lintian`      | `false`, `true`            | `false`         | Whether to run `lintian` checks on the newly built package. Non-overridden Lintian errors will cause CI to fail.   |
-| `network`      | `false`, `true`            | `false`         | Whether network access should be allowed during build.                                                             |
+| Input          | Examples                   | Default         | Description                                                                                                                                                                                                                                  |
+|----------------|----------------------------|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`         | `build`, `my-ci-tests`     | `suite`         | Image name to build in, or left empty to use the suite name.                                                                                                                                                                                 |
+| `suite`        | `trixie`, `resolute`       | `stable`        | Ubuntu or Debian suite to build for.                                                                                                                                                                                                         |
+| `source-dir`   | `.`, `src`                 | `.`             | Source directory root used for the package build.                                                                                                                                                                                            |
+| `debian-dir`   | e.g. `packaging/debian`    | `debian`        | Debian packaging directory. Will be copied into `source-dir` during the build.                                                                                                                                                               |
+| `version`      | `1.0.0`, `2.1.4`           | _(none)_        | Explicit package version. If omitted, a version is automatically determined from the git commit and any `v*` tags.                                                                                                                           |
+| `version-slug` | `deb14`, `ubu26`, ...      | _(none)_        | Suffix appended to the version to distinguish build for different distributions.                                                                                                                                                             |
+| `results-dir`  | `build-results`, `out/deb` | `build-results` | Directory receiving build artifacts and logs.                                                                                                                                                                                                |
+| `lintian`      | `false`, `true`            | `false`         | Whether to run `lintian` checks on the newly built package. Non-overridden Lintian errors will cause CI to fail. See [dummy-sane](https://github.com/ximion/debspawn-action/tree/main/tests/dummy-sane) for a minimal lintian-clean package. |
+| `network`      | `false`, `true`            | `false`         | Whether network access should be allowed during build.                                                                                                                                                                                       |
 
 ### Run action inputs
 

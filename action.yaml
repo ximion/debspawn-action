@@ -1,5 +1,5 @@
 name: "Debspawn Action"
-description: "Build deb packages or run CI in pristine containers. This is a dispatcher entrypoint for sub actions."
+description: "Build deb packages or run CI in pristine Debian/Ubuntu containers."
 inputs:
   action:
     description: "Action to run: setup, build, or run."
