@@ -142,9 +142,15 @@ runs:
     # from APTs full resolver (may not be available with some debootstrap variants)
     # as well as eatmydata.
     run: |
-      debspawn run --persistent \
+      tmpdir=$(mktemp -d)
+      tmpscript="$tmpdir/install.sh"
+      printf "#!/bin/sh\n%s\n" \
+        "DEBIAN_FRONTEND=noninteractive eatmydata apt-get install -yq --no-install-recommends ${{ steps.vars.outputs.pkgs }}" \
+        > "$tmpscript"
+      debspawn run --persistent -x \
         "${{ steps.vars.outputs.name }}" \
-        "eatmydata apt-get install -yq ${{ steps.vars.outputs.pkgs }}"
+        "$tmpscript"
+      rm -rf "$tmpdir"
 
   - name: Custom script
     shell: bash
