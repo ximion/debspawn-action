@@ -197,3 +197,59 @@ jobs:
         run: |
           echo "::error::Run action unexpectedly succeeded without running setup first."
           exit 1
+
+  dispatcher-end-to-end:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Setup via dispatcher
+        uses: ./
+        with:
+          action: setup
+          suite: stable
+
+      - name: Build via dispatcher
+        uses: ./
+        with:
+          action: build
+          suite: stable
+          debian-dir: tests/dummy/debian
+          version: 1.0.1
+          results-dir: build-results-dispatcher
+
+      - name: Run via dispatcher
+        uses: ./
+        with:
+          action: run
+          suite: stable
+          commands: |
+            echo "dispatcher run ok" > tests/run-dispatcher-result.txt
+
+      - name: Verify dispatcher results
+        run: |
+          if [[ ! -f build-results-dispatcher/dummy_1.0.1~stable_amd64.deb ]]; then
+            echo "::error::Expected dispatcher-built package not found."
+            exit 1
+          fi
+          grep -q "dispatcher run ok" tests/run-dispatcher-result.txt
+
+  dispatcher-rejects-invalid-action:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Invoke dispatcher with invalid selector (expected to fail)
+        id: invalid_dispatch
+        continue-on-error: true
+        uses: ./
+        with:
+          action: nope
+
+      - name: Verify invalid selector fails
+        if: ${{ steps.invalid_dispatch.outcome != 'failure' }}
+        run: |
+          echo "::error::Dispatcher unexpectedly accepted invalid action selector."
+          exit 1

@@ -20,6 +20,25 @@ This repository contains **three actions**:
 
 All actions require the `setup` action to have run first, which will create and cache the container image to use.
 
+By splitting the actions this way, you have a lot of flexibility in how you use the new container image,
+and can build multiple packages, run multiple commands, or even modify an image before it is cached all in
+one GitHub workflow!
+
+The common way to use this action is to explicitly call the respective sub-action (`setup`, `build`, `run`):
+```yaml
+- uses: ximion/debspawn-action/setup@v1
+  with:
+    suite: testing
+```
+
+Alternatively, you can use the global dispatch action by running it with `action: setup|build|run`:
+```yaml
+- uses: ximion/debspawn-action@v1
+  with:
+    action: setup
+    suite: testing
+```
+
 ### Setup action inputs
 
 All inputs except for `suite` are optional.

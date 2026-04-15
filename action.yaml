@@ -1,0 +1,131 @@
+name: "Debspawn Action"
+description: "Build deb packages or run CI in pristine containers. This is a dispatcher entrypoint for sub actions."
+inputs:
+  action:
+    description: "Action to run: setup, build, or run."
+    required: true
+
+  # Shared inputs
+  name:
+    description: "Image name. If empty, sub-actions default to suite."
+    required: false
+    default: ""
+  suite:
+    description: "Distribution suite (for example: stable, testing, resolute)."
+    required: false
+    default: "stable"
+
+  # setup/* inputs
+  components:
+    description: "Archive components for setup (for example: main, universe)."
+    required: false
+    default: "main"
+  packages:
+    description: "Extra packages for setup."
+    required: false
+  script:
+    description: "Setup script as inline commands or file path."
+    required: false
+  cache:
+    description: "Enable image cache in setup."
+    required: false
+    default: true
+  cache-suffix:
+    description: "Cache key suffix in setup."
+    required: false
+    default: "gha"
+
+  # build/* inputs
+  source-dir:
+    description: "Build source directory."
+    required: false
+    default: "."
+  debian-dir:
+    description: "Debian packaging directory for build."
+    required: false
+    default: "debian"
+  version:
+    description: "Explicit package version for build."
+    required: false
+  version-slug:
+    description: "Version slug suffix for build."
+    required: false
+  results-dir:
+    description: "Directory for build artifacts and logs."
+    required: false
+    default: "build-results"
+  network:
+    description: "Enable network in build container."
+    required: false
+    default: false
+
+  # run/* inputs
+  summary:
+    description: "Log summary/header for run action."
+    required: false
+    default: ""
+  commands:
+    description: "Inline commands or script file path for run action."
+    required: false
+  boot:
+    description: "Boot container before running commands."
+    required: false
+    default: false
+  allow:
+    description: "Additional allow-list permissions for run action."
+    required: false
+
+branding:
+  icon: "package"
+  color: "purple"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate selected action
+      shell: bash
+      run: |
+        case "${{ inputs.action }}" in
+          setup|build|run)
+            ;;
+          *)
+            echo "::error::Invalid input 'action=${{ inputs.action }}'. Expected one of: setup, build, run."
+            exit 1
+            ;;
+        esac
+
+    - name: Dispatch setup
+      if: ${{ inputs.action == 'setup' }}
+      uses: ./setup
+      with:
+        name: ${{ inputs.name }}
+        suite: ${{ inputs.suite }}
+        components: ${{ inputs.components }}
+        packages: ${{ inputs.packages }}
+        script: ${{ inputs.script }}
+        cache: ${{ inputs.cache }}
+        cache-suffix: ${{ inputs.cache-suffix }}
+
+    - name: Dispatch build
+      if: ${{ inputs.action == 'build' }}
+      uses: ./build
+      with:
+        name: ${{ inputs.name }}
+        suite: ${{ inputs.suite }}
+        source-dir: ${{ inputs.source-dir }}
+        debian-dir: ${{ inputs.debian-dir }}
+        version: ${{ inputs.version }}
+        version-slug: ${{ inputs.version-slug }}
+        results-dir: ${{ inputs.results-dir }}
+        network: ${{ inputs.network }}
+
+    - name: Dispatch run
+      if: ${{ inputs.action == 'run' }}
+      uses: ./run
+      with:
+        name: ${{ inputs.name }}
+        suite: ${{ inputs.suite }}
+        summary: ${{ inputs.summary }}
+        commands: ${{ inputs.commands }}
+        boot: ${{ inputs.boot }}
+        allow: ${{ inputs.allow }}
