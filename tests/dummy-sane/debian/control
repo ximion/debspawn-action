@@ -1,0 +1,14 @@
+Source: dummy-sane
+Section: utils
+Priority: optional
+Maintainer: Matthias Klumpp <mak@debian.org>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.2
+Homepage: https://github.com/ximion/debspawn-action
+
+Package: dummy-sane
+Architecture: all
+Depends: ${misc:Depends}
+Description: Small package used to verify lintian-enabled CI builds
+ This package is a tiny fixture used by CI tests.
+ It installs one helper shell script and a manual page.

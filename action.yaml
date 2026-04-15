@@ -58,6 +58,10 @@ inputs:
     description: "Enable network in build container."
     required: false
     default: false
+  lintian:
+    description: "Run lintian checks on the built package."
+    required: false
+    default: false
 
   # run/* inputs
   summary:
@@ -118,6 +122,7 @@ runs:
         version-slug: ${{ inputs.version-slug }}
         results-dir: ${{ inputs.results-dir }}
         network: ${{ inputs.network }}
+        lintian: ${{ inputs.lintian }}
 
     - name: Dispatch run
       if: ${{ inputs.action == 'run' }}

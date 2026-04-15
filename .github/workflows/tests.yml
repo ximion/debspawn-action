@@ -112,6 +112,34 @@ jobs:
             exit 1
           fi
 
+  build-with-lintian:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: stable
+
+      - name: Package Build (lintian)
+        uses: ./build
+        with:
+          suite: stable
+          source-dir: tests/dummy-sane
+          version: 1.0.0
+          lintian: true
+          results-dir: build-results-lintian
+
+      - name: Check lintian build results
+        run: |
+          ls -lha build-results-lintian/
+          if [[ ! -f build-results-lintian/dummy-sane_1.0.0~stable_all.deb ]]; then
+            echo "::error::Expected package 'dummy-sane_1.0.0~stable_all.deb' not found in lintian build results."
+            exit 1
+          fi
+
   run-inline-commands:
     runs-on: ubuntu-latest
     steps:

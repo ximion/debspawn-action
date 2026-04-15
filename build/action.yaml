@@ -27,6 +27,10 @@ inputs:
     description: "Output location for the build artifacts (packages and build logs)."
     default: "build-results"
     required: false
+  lintian:
+    description: "If true, run Lintian checks on the newly built package before exporting it."
+    default: false
+    required: false
   network:
     description: "If true, run build with network enabled (bad for reproducibility)."
     default: false
@@ -82,12 +86,16 @@ runs:
     if: ${{ inputs.version == '' }}
     shell: bash
     working-directory: ${{ steps.vars.outputs.src_dir }}
+    env:
+      DEBFULLNAME: "CI Runner"
     run: ${{ github.action_path }}/autoversion.sh "${{ steps.vars.outputs.suite }}" "${{ steps.vars.outputs.slug }}"
 
   - name: Apply version
     if: ${{ inputs.version != '' }}
     shell: bash
     working-directory: ${{ steps.vars.outputs.src_dir }}
+    env:
+      DEBFULLNAME: "CI Runner"
     run: |
       dch --distribution "${{ steps.vars.outputs.suite }}" --newversion="${{ inputs.version }}~${{ steps.vars.outputs.slug }}" -b \
         "New automated build for: ${{ inputs.version }}"
@@ -99,6 +107,9 @@ runs:
       extra_args=""
       if [[ "${{ inputs.network }}" == "true" ]]; then
         extra_args="--allow-network"
+      fi
+      if [[ "${{ inputs.lintian }}" == "true" ]]; then
+        extra_args="$extra_args --lintian"
       fi
       debspawn build $extra_args \
         --results-dir="${{ steps.vars.outputs.results_dir }}" \

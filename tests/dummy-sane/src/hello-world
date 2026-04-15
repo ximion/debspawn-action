@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+
+echo "Hello world from a script installed by a lintian-clean package!"

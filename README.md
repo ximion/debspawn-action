@@ -39,6 +39,8 @@ Alternatively, you can use the global dispatch action by running it with `action
     suite: testing
 ```
 
+See the **examples** section below for more complete workflow examples.
+
 ### Setup action inputs
 
 All inputs except for `suite` are optional.
@@ -66,6 +68,7 @@ All inputs except for `suite` are optional.
 | `version`      | `1.0.0`, `2.1.4`           | _(none)_        | Explicit package version. If omitted, a version is automatically determined from the git commit and any `v*` tags. |
 | `version-slug` | `deb14`, `ubu26`, ...      | _(none)_        | Suffix appended to the version to distinguish build for different distributions.                                   |
 | `results-dir`  | `build-results`, `out/deb` | `build-results` | Directory receiving build artifacts and logs.                                                                      |
+| `lintian`      | `false`, `true`            | `false`         | Whether to run `lintian` checks on the newly built package. Non-overridden Lintian errors will cause CI to fail.   |
 | `network`      | `false`, `true`            | `false`         | Whether network access should be allowed during build.                                                             |
 
 ### Run action inputs

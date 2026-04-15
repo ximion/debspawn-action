@@ -1,0 +1,6 @@
+# These warnings are expected and are find for this 3rd-party package,
+# since we do not need to follow NMU procedures and explicitly want to
+# include distribution information in the version number.
+dummy-sane source: no-nmu-in-changelog
+dummy-sane source: source-nmu-has-incorrect-version-number
+dummy-sane source: version-refers-to-distribution
