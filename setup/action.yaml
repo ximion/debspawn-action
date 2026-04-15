@@ -112,7 +112,7 @@ runs:
     uses: actions/cache@v5
     if: ${{ inputs.cache }}
     with:
-      path: /var/lib/debspawn/images/
+      path: /var/lib/debspawn/images/${{ steps.vars.outputs.name }}*
       key: >-
         dsimg-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
       restore-keys: |

@@ -1,0 +1,203 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  setup-simple:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: resolute
+          components: >-
+            main
+            universe
+          cache: true
+
+      - name: Verify created environment
+        run: |
+          debspawn list
+          debspawn exists resolute
+
+  setup-with-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup (with packages)
+        uses: ./setup
+        with:
+          suite: stable
+          cache: true
+          packages: >-
+            curl
+            git
+            ca-certificates
+
+      - name: Verify package command works inside environment
+        run: debspawn run stable "/bin/sh -c 'command -v curl && command -v git'"
+
+  build-with-explicit-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: stable
+
+      - name: Package Build
+        uses: ./build
+        with:
+          suite: stable
+          debian-dir: tests/dummy/debian
+          version: 1.0.0
+          results-dir: build-results-explicit
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-with-explicit-version
+          path: build-results-explicit/*
+
+      - name: Check results
+        run: |
+          ls -lha build-results-explicit/
+          if [[ ! -f build-results-explicit/dummy_1.0.0~stable_amd64.deb ]]; then
+            echo "::error::Expected package 'dummy_1.0.0~stable_amd64.deb' not found in build results."
+            exit 1
+          fi
+
+  build-with-autoversion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ensure a local tag exists for autoversion
+        run: |
+          if ! git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            git tag v0.1.0
+          fi
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: stable
+
+      - name: Package Build (autoversion)
+        uses: ./build
+        with:
+          suite: stable
+          source-dir: tests/autoversion-source
+          network: true
+          results-dir: build-results-autoversion
+
+      - name: Check autoversion results
+        run: |
+          ls -lha build-results-autoversion/
+          shopt -s nullglob
+          files=(build-results-autoversion/dummy-all_*~stable_all.deb)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "::error::Expected at least one autoversioned package in build-results-autoversion/."
+            exit 1
+          fi
+
+  run-inline-commands:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: stable
+
+      - name: Run inline commands
+        uses: ./run
+        with:
+          suite: stable
+          summary: "Inline run test"
+          commands: |
+            echo "inline run ok" > "tests/run-inline-result.txt"
+
+      - name: Verify inline run result
+        run: grep -q "inline run ok" tests/run-inline-result.txt
+
+  run-script-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Debspawn Setup
+        uses: ./setup
+        with:
+          suite: stable
+
+      - name: Run script file with allow list
+        uses: ./run
+        with:
+          suite: stable
+          boot: false
+          allow: |
+            network
+          commands: tests/scripts/run-file-test.sh
+
+      - name: Verify script-file run result
+        run: grep -q "script file run ok" tests/run-file-result.txt
+
+  build-requires-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build without setup (expected to fail)
+        id: build_without_setup
+        continue-on-error: true
+        uses: ./build
+        with:
+          suite: stable
+          debian-dir: tests/dummy/debian
+          version: 1.0.0
+
+      - name: Verify setup is required for build
+        if: ${{ steps.build_without_setup.outcome != 'failure' }}
+        run: |
+          echo "::error::Build action unexpectedly succeeded without running setup first."
+          exit 1
+
+  run-requires-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run without setup (expected to fail)
+        id: run_without_setup
+        continue-on-error: true
+        uses: ./run
+        with:
+          suite: stable
+          commands: echo "this should not run"
+
+      - name: Verify setup is required for run
+        if: ${{ steps.run_without_setup.outcome != 'failure' }}
+        run: |
+          echo "::error::Run action unexpectedly succeeded without running setup first."
+          exit 1
