@@ -106,7 +106,7 @@ runs:
       )
 
       hash=$(printf "%s" "$keydata" | sha256sum | cut -c1-32)
-      echo "value=${hash}-${year}-${time_bucket}" >> "$GITHUB_OUTPUT"
+      echo "value=${hash}-${year}-${time_bucket}_${{ runner.arch }}" >> "$GITHUB_OUTPUT"
 
   - name: Restore cache
     uses: actions/cache@v5
@@ -114,10 +114,10 @@ runs:
     with:
       path: /var/lib/debspawn/images/
       key: >-
-        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+        dsimg-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
       restore-keys: |
-        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
-        debspawn-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-
+        dsimg-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-${{ inputs.cache-suffix }}
+        dsimg-${{ steps.vars.outputs.name }}-${{ steps.cache-key.outputs.value }}-
 
   - name: Create or update environment
     shell: bash
@@ -150,21 +150,23 @@ runs:
     shell: bash
     if: ${{ inputs.script != '' }}
     run: |
+      tmpdir=$(mktemp -d)
       script_input="${{ inputs.script }}"
       if [ -f "$script_input" ]; then
           echo "Script input is a file: $script_input"
-          debspawn run --persistent -x \
-            "${{ steps.vars.outputs.name }}" \
-            "$script_input"
+          script_fname=$script_input
       else
           echo "Script input is inline content"
-          tmpdir=$(mktemp -d)
           tmpscript="$tmpdir/custom-setup.sh"
-
           printf "#!/bin/sh\n%s\n" "$script_input" > "$tmpscript"
-          debspawn run --persistent -x \
-            "${{ steps.vars.outputs.name }}" \
-            "$tmpscript"
-
-          rm -rf "$tmpdir"
+          script_fname="$tmpscript"
       fi
+
+      debspawn --owner=$USER run \
+        --persistent -x \
+        --bind-build-dir=rw \
+        --build-dir="$GITHUB_WORKSPACE" \
+        "${{ steps.vars.outputs.name }}" \
+        "$script_fname"
+
+      rm -rf "$tmpdir"

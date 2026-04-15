@@ -1,0 +1,96 @@
+name: "Run script in a Debian container"
+description: "Run any action in a debspawn container."
+inputs:
+  name:
+    description: "The image name to run in. If not set, the suite name will be used."
+    default: ""
+    required: false
+  suite:
+    description: "The suite name to run in."
+    default: "stable"
+    required: false
+  summary:
+    description: "A short summary of the task that is run, for logging purposes."
+    default: ""
+    required: false
+  commands:
+    description: "The commands to run. Can also point to a single script file."
+    required: false
+  boot:
+    description: "Boot the container, then run the respective action."
+    default: false
+    required: false
+  allow:
+    description: "List of additional permissions to allow for the container."
+    required: false
+branding:
+  icon: "play-circle"
+  color: "purple"
+runs:
+  using: "composite"
+  steps:
+  - name: Normalize variables
+    id: vars
+    shell: bash
+    run: |
+      name="${{ inputs.name || inputs.suite }}"
+      echo "name=$name" >> "$GITHUB_OUTPUT"
+      echo "suite=${{ inputs.suite }}" >> "$GITHUB_OUTPUT"
+
+      summary="${{ inputs.summary }}"
+      if [[ -n "$summary" ]]; then
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+      else
+          echo "summary=Running commands in '$name'" >> "$GITHUB_OUTPUT"
+      fi
+
+      # Make a comma-separated list of allowed permissions, trimming whitespace and ignoring empty lines
+      permissions=$(printf "%s\n" "${{ inputs.allow }}" \
+                 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+                 -e '/^$/d' \
+                 | paste -sd',' -)
+      echo "permissions=$permissions" >> "$GITHUB_OUTPUT"
+
+  - name: Verify
+    shell: bash
+    run: |
+      if ! debspawn exists "${{ steps.vars.outputs.name }}"; then
+        echo "::error::Debspawn environment '${{ inputs.suite }}' does not exist. Did you forget to run the setup action?"
+        exit 1
+      fi
+
+      if [[ -z "${{ steps.vars.outputs.suite }}" ]]; then
+        echo "::error::Suite name is not set. We need a valid suite to continue."
+        exit 1
+      fi
+
+  - name: Run
+    shell: bash
+    run: |
+      tmpdir=$(mktemp -d)
+      cmdscript="$tmpdir/run.sh"
+
+      script_input="${{ inputs.commands }}"
+      if [ -f "$script_input" ]; then
+          printf "#!/bin/sh\nexec %s\n" "$script_input" > "$cmdscript"
+      else
+          printf "#!/bin/sh\n%s\n" "$script_input" > "$cmdscript"
+      fi
+
+      extra_args=""
+      if [[ -n "${{ steps.vars.outputs.permissions }}" ]]; then
+        extra_args="--allow=${{ steps.vars.outputs.permissions }}"
+      fi
+      if [[ "${{ inputs.boot }}" == "true" ]]; then
+        extra_args="$extra_args --boot"
+      fi
+
+      debspawn --owner=$USER run -x \
+        --bind-build-dir=rw \
+        --build-dir="$GITHUB_WORKSPACE" \
+        --header="${{ steps.vars.outputs.summary }}" \
+        --suite="${{ steps.vars.outputs.suite }}" \
+        $extra_args "${{ steps.vars.outputs.name }}" \
+        "$cmdscript"
+
+      rm -rf "$tmpdir"
