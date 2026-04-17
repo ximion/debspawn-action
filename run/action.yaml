@@ -75,7 +75,7 @@ runs:
       if [ -f "$SCRIPT_INPUT" ]; then
           printf "#!/bin/sh\nexec %s\n" "$SCRIPT_INPUT" > "$cmdscript"
       else
-          printf "#!/bin/sh\n%s\n" "$SCRIPT_INPUT" > "$cmdscript"
+          printf "#!/bin/sh\nset -e\n%s\n" "$SCRIPT_INPUT" > "$cmdscript"
       fi
 
       extra_args=""

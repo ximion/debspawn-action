@@ -144,7 +144,7 @@ runs:
     run: |
       tmpdir=$(mktemp -d)
       tmpscript="$tmpdir/install.sh"
-      printf "#!/bin/sh\n%s\n" \
+      printf "#!/bin/sh\nset -e\n%s\n" \
         "DEBIAN_FRONTEND=noninteractive eatmydata apt-get install -yq --no-install-recommends ${{ steps.vars.outputs.pkgs }}" \
         > "$tmpscript"
       debspawn run --persistent -x \
@@ -165,7 +165,7 @@ runs:
       else
           echo "Script is inline content"
           tmpscript="$tmpdir/custom-setup.sh"
-          printf "#!/bin/sh\n%s\n" "$SCRIPT_INPUT" > "$tmpscript"
+          printf "#!/bin/sh\nset -e\n%s\n" "$SCRIPT_INPUT" > "$tmpscript"
           script_fname="$tmpscript"
       fi
 
