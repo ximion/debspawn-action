@@ -16,6 +16,10 @@ inputs:
   commands:
     description: "The commands to run. Can also point to a single script file."
     required: false
+  root:
+    description: "Run the action as root. If false, run as less-privileged user inside of the container."
+    default: true
+    required: false
   boot:
     description: "Boot the container, then run the respective action."
     default: false
@@ -84,6 +88,9 @@ runs:
       fi
       if [[ "${{ inputs.boot }}" == "true" ]]; then
         extra_args="$extra_args --boot"
+      fi
+      if [[ "${{ inputs.root }}" != "true" ]]; then
+        extra_args="$extra_args --run-as=unprivileged"
       fi
 
       debspawn --owner=$USER run -x \
