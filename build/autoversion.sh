@@ -22,7 +22,7 @@ SLUG_EXT="$2"
 #
 
 git_commit=$(git rev-parse --short HEAD)
-git_current_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+git_current_tag=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo v0.0.0)
 git_commit_no=$(git rev-list --count "${git_current_tag}..HEAD" 2>/dev/null)
 upstream_version=${git_current_tag#v}; upstream_version=${upstream_version//-/.}
 if [ "$git_commit_no" -gt 0 ]; then
