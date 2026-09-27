@@ -82,6 +82,8 @@ runs:
     id: cache-key
     if: ${{ inputs.cache }}
     shell: bash
+    env:
+      SCRIPT_INPUT: ${{ inputs.script }}
     run: |
       week=$(date +%V)
       year=$(date +%G)
@@ -90,10 +92,10 @@ runs:
 
       # if the script is a file, we include its hash as cache key, otherwise
       # we just add the full content to hash
-      script_key="${{ inputs.script }}"
-      if [ -f "$script_input" ]; then
-          echo "Script input is a file: $script_input"
-          script_key=$(sha256sum "$script_key" | cut -d' ' -f1)
+      script_key="$SCRIPT_INPUT"
+      if [ -f "$SCRIPT_INPUT" ]; then
+          echo "Script input is a file: $SCRIPT_INPUT"
+          script_key=$(sha256sum "$SCRIPT_INPUT" | cut -d' ' -f1)
       fi
 
       keydata=$(cat <<EOF
